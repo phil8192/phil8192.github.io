@@ -1,0 +1,165 @@
+---
+title: "lazyIris examples"
+author: "[Phil](https://github.com/phil8192/lazy-iris)"
+date: "`r Sys.Date()`"
+output: 
+#  rmarkdown::html_vignette:
+  html_document:
+    theme: journal 
+    toc: true
+  pdf_document:
+    toc: true
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{Microstructure2 Guide}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r, include=FALSE}
+options(digits.secs=3)
+library(lazyIris)
+knitr::opts_chunk$set(dpi=100, fig.width=10, fig.height=6)
+```
+# Overview 
+_lazyIris_ is a small implementation of k-nearest neighbours applied to the 
+famous iris dataset.
+
+# Installing
+First, ensure that the [devtools](https://github.com/hadley/devtools) package 
+is installed and then install directly from the package github 
+[repository](https://github.com/phil8192/lazy-iris).
+
+```{r}
+# check for and install devtools.
+if(!("devtools" %in% rownames(installed.packages())))
+  install.packages("devtools")
+
+# install and load.
+if(!("lazyIris" %in% rownames(installed.packages())))
+  devtools::install_github("phil8192/lazy-iris")
+require(lazyIris)
+```
+
+# Loading data
+The package has preprocessed iris data attached.
+
+```{r}
+attach(iris.data)
+```
+Example data may be loaded from the inst/extdata directory by using the 
+_loadData_ function. In addition, the _checkData_ function will perform any 
+necessary data sanity checks.
+```{r}
+iris.data <- checkData(loadData())
+```
+
+# A quick look at the data
+The dataset consists of 4 features and 3 possible classes. Some of the features
+are highly correlated:
+
+```{r, results="hide"}
+cor(iris.data[, 1:4])
+```
+
+```{r, echo=F, results="markup"}
+knitr::kable(cor(iris.data[, 1:4]))
+```
+
+## Iris data visualisation
+
+The package provides a means to visualise the relationship between the 4 
+features and the corresponding class.
+
+```{r}
+# plot all the data.
+visualise(iris.data, class.name="species", main="iris data", plot.hist=TRUE,
+    plot.cor=TRUE)
+```
+
+In the above visualisation, the colours correspond to the classification of the
+species of iris plant:
+
+| colour | species          |
+|-------:|:-----------------|
+|    red | Iris setosa      |
+|  green | Iris versicolour |
+|   blue | Iris virginica   |
+
+The lower left panels show the correlation between the 4 iris features, the
+diagonal panels contain a histogram of the distribution of each feature, and
+finally, the upper right panels contain scatter plots of each possible feature
+combination colour coded by species.
+
+# Querying the data
+
+The _knn_ function makes it possible to query the data for neighbouring 
+instances given an arbitrary list of features. 
+
+## 10-Nearest neighbours
+
+The following example obtains the _top 10_ nearest neighbours to query:
+
+```{r, results="hide"}
+# form the query.
+# in this example, the feature values are actually the mean values in the
+# dataset, thus the results may be interpreted as the top 10 "most average"
+# instances.
+
+query <- list(
+    sepal.length=5.84,
+    sepal.width=3.05,
+    petal.length=3.76,
+    petal.width=1.20)
+
+# obtain the nearest-neighbours.
+top.10 <- knn(query, iris.data, 10)
+print(top.10, row.names=FALSE)
+```
+
+```{r, echo=F, results="markup"}
+query <- list(sepal.length=5.84, sepal.width=3.05,
+              petal.length=3.76, petal.width=1.20)
+top.10 <- knn(query, iris.data, k=10)
+knitr::kable(top.10, row.names=F)
+```
+
+## Classification
+
+In addition to the N-nearest neighours, the function also returns the distance
+from the query point. This distance can be used to predict the most likely 
+class of the query point using the _classifier_ function.
+
+```{r}
+query <- list(sepal.length=5.84, sepal.width=3.05, 
+              petal.length=3.76, petal.width=1.20)
+top.10 <- knn(query, iris.data, k=10)
+prediction <- classifier(top.10$species, top.10$distance)
+print(paste("prediction =", prediction$pred,
+            "confidence =", prediction$conf))
+```
+
+## Visualising a query result
+
+Given a list of nearest neighbours returned from the _knn_ function, it is 
+possible to visualise the query point and it's nearest neighbours over all 
+dimensions in the feature space by using the _visualise_ function.
+
+```{r}
+# form the query and obtain the nearest neighbours.
+q <- list(sepal.length=5.84, sepal.width=3.05,
+          petal.length=3.76, petal.width=1.20)
+top.10 <- knn(query, iris.data, k=10)
+
+# visualise the result.
+visualise(iris.data, class.name="species", query=q, neighbours=top.10,
+    main="iris data neighbours", plot.hist=TRUE, plot.cor=FALSE)
+```
+
+In the above plot, the query point is shown as a black point. The resulting 
+neibours from the _knn_ query are highlighted (opaque) circles. In addition, 
+the query point with respect to the distribution of features has been 
+highlighted with a black dashed vertical line over the corresponding feature
+histograms.
+
+
+

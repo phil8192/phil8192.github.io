@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta property="og:title" content="Kaggle Traveling Santa 2018 competition"/>
+<meta property="og:description" content="Guided Local Search (GLS) combined with Fast Local Search (FLS) applied to the Xmas Kaggle TSP competition"/>
+<meta property="og:image" content="http://parasec.net/blog/kaggle-traveling-santa-2018-prime-paths/splash.png"/>
+<title>Applying Guided Local Search (GLS) to the 2018 Kaggle TSP competition</title> 
+<link href="https://fonts.googleapis.com/css?family=Jim+Nightshade|Press+Start+2P|Aldrich|Roboto" rel="stylesheet">
+<link href="../../css/parasec2.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/xt256.min.css">
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    tex2jax: {
+      inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+      processEscapes: true
+    }
+  });
+</script>
+<script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+</head>
+<body>
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="#ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+<div id="content-wrapper">
+
+<div id="blog-header" style="background-image: url('splash.png'); background-color: #000000; color: #ffffff;">
+<h1>Guided Local Search</h1>
+<h2>applied to the 2018 Kaggle TSP competition</h2>
+<h3>Sat 16 Mar 02:01:21 UTC 2019</h3>
+</div>
+
+<p>
+This Xmas I took part in the <a href="https://www.kaggle.com/c/traveling-santa-2018-prime-paths/">Kaggle Traveling Santa 2018 - Prime Paths</a>
+competition. I had not invested a significant amount of time into a Kaggle before and found the overall competition to be a real challenge and great fun. 
+</p>
+
+<p>
+The challenge involved a large scale <a href="https://en.wikipedia.org/wiki/Travelling_salesman_problem">traveling salesman problem (TSP)</a>
+consisting of 197,768 points which must all be visited exactly once whilst minimising the overall length of the tour.
+Each point (x, y) was associated with an ID number which was used to add a fiendish twist to the problem: For every 10th point visited in the tour,
+if the previous point ID is *not* a prime number, then the distance to the 10th point is increased by 10%.
+</p>
+
+<p>
+Specifically, let $\mathbb{P}$ be the set of primes, $Id_i$ be the ID number of the $i^{th}$ index in a permutation $s$ of $N$ points and $distance_{p, q}$ return the (Euclidean) distance between 2 points $p, q$. Then, the objective $g$ is to minimise:
+</p>
+
+$$
+g(s) = distance_{N, 0} + \sum_{i = 1}^{N} P_i \cdot distance_{i - 1, i} 
+$$
+
+Where
+
+$$
+P_i = \begin{cases} 1.1, & \text{if } i\bmod 10 = 0 \wedge Id_{i-1} \notin \mathbb{P} \\ 1, & \text{otherwise} \end{cases}
+$$
+
+<p>
+What makes this problem challenging, is the fact that it is <a href="https://en.wikipedia.org/wiki/NP-hardness">NP-hard</a>: a brute force attempt at the
+problem would involve evaluating all possible tour permutations $N!$. What makes it especially interesting is the prime number
+<a href="https://en.wikipedia.org/wiki/Constraint_(mathematics)#Hard_and_soft_constraints">soft constraint</a>. Introducing a penalty which is dependent
+on the <i>previously</i> visited point in the tour makes the problem asymmetric: evaluating the cost of a tour in <i>reverse</i> order will result in a
+different score: $g(s) \neq g(reverse(s))$.
+</p>
+
+
+<h2>The 2-Opt heuristic</h2>
+
+<p>
+The first thing I tried was to ignore the prime penalty and use the famous <a href="https://en.wikipedia.org/wiki/2-opt"/>2-Opt heuristic</a>
+to generate a "2-optimal" (explained below) tour. I had implemented a variation of 2-Opt some time ago in Java and <a href="https://github.com/phil8192/tsp-lisp/blob/master/two-opt.lisp">Lisp</a>,
+so took the chance to revisit my old (messy) code.
+</p>
+
+<p>
+The 2-Opt algorithm is a well known <a href="https://en.wikipedia.org/wiki/Local_search_(optimization)">local search</a> heuristic
+for the traveling salesman problem (TSP). Like all local search approaches, the algorithm works by exploring a <a href="https://en.wikipedia.org/wiki/Search_space">search space</a>
+of <a href="https://en.wikipedia.org/wiki/Feasible_region#Candidate_solution">candidate solutions</a>, which in the case of the TSP, will be
+different permutations of a tour.
+</p>
+
+<p>
+To explore a search space, it is first necessary to define a <i>neighbourhood function</i>. A naive neighbourhood function for the TSP
+may be to create a new permutation of a tour by <i>swapping</i> 2 elements and then checking to see if the resulting tour is an improvement or not. If the swap yields an
+improvement, then the search accepts the candidate solution and transitions to a new point in the search space. If it is not, the swap may be reverted and then
+another <i>neighbouring candidate</i> evaluated.
+</p>
+
+<p>
+Each candidate solution may have a number of neighbours (defined by the neighbourhood function). The choice of neighbour on each iteration of the algorithm is defined
+by a <i>search strategy</i>, which may be *opportunistic* (accept the first found move which results in an improvement on the objective function), *greedy* (accept the move
+which yields the best improvement in the candidate set), or *stochastic* (accept a move probabilistically according to some policy - e.g., <a href="https://en.wikipedia.org/wiki/Simulated_annealing">simulated annealing</a>).
+</p>
+
+<p>
+The key difficulty when formulating neighbourhood functions is finding a scheme which results in "smooth" search space. The trouble with the 2-element-swap approach is that whilst
+it returns valid candidate solutions (any permutation of points is valid), the neighbourhood operator is *destructive*, resulting in poor quality tours:  swapping 2 elements is likely to just tangle the tour further.
+</p>
+
+<p>
+The 2-Opt heuristic on the other-hand works by swapping 2 *edges* whilst preserving the overall order of the tour. To illustrate, consider the following tour (A to L and back to A): A-B-C-D-E-F-G-H-I-J-K-L-A, which spatially might be arranged like this:
+
+<pre>
+ (A) -> (B) -> (C)    (I) <- (H) <- (G)
+  ^              \    /              ^
+  |               \  /               |
+  ^                \/                ^
+  |                /\                |
+  ^               /  \               ^
+  |              /    \              |
+ (L) <- (K) <- (J)    (D) -> (E) -> (F)
+</pre>
+
+<p>
+Note that the tour is obviously inefficient. In 2-Opt, 2 <i>candidate edges</i> are selected and swapped with one another to yield a new tour. In this example, the 2 edges may be (C-D) and (I-J):
+</p>
+
+<p>
+A-B-<span style="color:#336699">C-D</span>-E-F-G-H-<span style="color:#336699">I-J</span>-K-L-A.
+</p>
+
+<p>
+Swapping these 2 edges will result in 2 new edges (C-I) and (D-J) respectively. To do this, the (C-D) and (I-J) edges are first deleted, resulting in an invalid, disconnected tour:
+</p>
+
+<pre>
+ (A) -> (B) -> (C)    (I) <- (H) <- (G)
+  ^                                  ^
+  |                                  |
+  ^                                  ^
+  |                                  |
+  ^                                  ^
+  |                                  |
+ (L) <- (K) <- (J)    (D) -> (E) -> (F)
+</pre>
+
+<p>
+The next step is to <i>reverse</i> the order of <i>one</i> of the disconnected parts. Here we arbitrarily select the right hand sub-tour given that both parts are the same size, else we
+would select the shortest of the 2 as to minimise the computation time of the reverse operation.
+</p>
+
+<pre style="color:#336699">
+                      (I) -> (H) -> (G)
+                                     |
+                                     v
+                                     |
+                                     v
+                                     |
+                                     v 
+                      (D) <- (E) <- (F)
+</pre>
+
+<p>
+The final step is to stitch the tour back-together with the new (C-I), (D-J) edges, yielding a valid (and in this case, better) tour:
+</p>
+
+<p>
+A-B-C-<span style="color:#336699">I-H-G-F-E-D</span>-J-K-L-A
+</p>
+
+<pre>
+ (A) -> (B) -> (C) -> (I) -> (H) -> (G)
+  ^                                  |
+  |                                  v
+  ^                                  |
+  |                                  v
+  ^                                  |
+  |                                  v 
+ (L) <- (K) <- (J) <- (D) <- (E) <- (F)
+</pre>
+
+<p>
+As such, a single 2-Opt operation is a neighbourhood function and the neighbourhood of a tour is defined as the set of all edge *pair* combinations.
+Choosing which pair of edges to consider and which pair to select when multiple improvements are possible is the task of the search algorithm.
+</p>
+
+<h2>Fast Local Search (FLS)</h2>
+
+<p>
+Having defined a neighbourhood function it is then possible to evaluate potential 2-Opt moves. One strategy might be to continuously select 2 random edges
+and check to see if 2-Opting those edges would result in a better shorter tour. Instead of random edge selection, FLS will iterate over all possible edge
+combinations, checking each for potential moves. If a move is found, the corresponding edges are 2-Opted and the search continues from the previous edge in
+the tour. This process continues until no possible moves can be found, at which point the tour is known to be <i>2-Optimal</i>. 
+</p>
+
+<h3>Don't look bits</h3>
+
+<p>
+The trouble with the approach above is that a lot of time will be spent (re)evaluating moves which will not result in an improvement. Jon Bentley in his
+<a href="https://pubsonline.informs.org/doi/abs/10.1287/ijoc.4.4.387">1992 paper</a> describes an optimisation for this process known as "Don't look bits".
+Each point/city in the tour is initialised as <i>active</i> at the start of the local search procedure. When no moves can be found for an edge (each edge is
+compared with every other), the edge is set to <i>inactive</i>. If a move is found, the 2 edges involved in the 2-Opt move are set to <i>active</i>. When evaluating
+potential moves <i>inactive</i> edges are ignored. This has the effect of forcing the local search procedure to only consider regions of the search space which might
+yield an improvement. Local search terminates when all edges are inactive.
+</p>
+
+<h3>Triangle of inequality</h3>
+
+<p>
+When evaluating a potential move between 2 edges, the Euclidean difference
+between the original edges $ab$ and $bc$ and the candidate edges $ac$ and $bd$ is calculated:
+</p>
+
+$
+\begin{align}
+    \sqrt{\delta_{ac}} & + \sqrt{\delta_{bd}} \\
+  - \sqrt{\delta_{ab}} & + \sqrt{\delta_{bc}}
+\end{align}
+$
+
+<p>
+Where $\delta_{pq} = (p_x-q_x)^2+(p_y-q_y)^2$
+</p>
+
+<p>
+This operation is the bottleneck in the FLS algorithm. The trouble is the <i>sqrt()</i> call which will be slow (in terms of microseconds). There are 4 <i>sqrt()</i> operations needed in
+the Euclidean difference calculation, which makes matters worse.
+</p>
+
+<p>
+An obvious optimisation would inolve precomputing the distances for all edge combinations and stashing the result in a lookup table/matrix with the expectation that a lookup will be
+computationally less expensive than doing a <i>sqrt()</i> call. This is fine for small enough problems, but what if the number of cities/points in the tour is sufficiently large to make this
+approach infeasible? In terms of an array based implementation, this would involve an array of size $\frac{1}{2}n(n-1)dtype$, where
+$dtype$ might be 64 bits for a double.
+</p>
+
+<p>
+If precaching is infeasible, it is still possible to minimise number of <i>sqrt()</i> calls by exploiting the fact that for the Euclidean difference delta above to be &lt; 0, <i>at least</i>
+one of the candidate edges must be shorter. If they are <i>both</i> longer, there is no point in doing the <i>sqrt()</i>: So we can <b>compare</b> the delta's before differencing, thanks
+to the <a href="https://en.wikipedia.org/wiki/Triangle_inequality">triangle of inequality</a>, thus bypassing <i>sqrt()</i> most of the time. The Euclidean difference function above can then return &gt; 0 if $\delta_{ab} \lt \delta_{ac} \wedge \delta_{cd} \lt \delta_{bd}$ - degredation in tour length if edges swapped.
+</p>
+
+
+<h2>Guided Local Search (GLS)</h2>
+
+<p>
+I was first introduced to GLS back in university whilst studying a constraint satisfaction course led by <a href="http://www.bracil.net/edward/">Professor Edward Tsang</a>.
+</p>
+
+<p>
+GLS is a <a href="https://en.wikipedia.org/wiki/Metaheuristic">metaheuristic</a> which works in combination with
+an existing local search method. It attempts to <i>guide</i> a local search algorithm by <i>augmenting</i> the underlying
+objective function by assigning an additional penalty score to features present in the candidate solution. The underlying local search algorithm remains unchanged, in the sense that GLS "sits on top" of the search procedure.
+</p>
+
+<p>
+The overall idea of GLS is to allow the underlying local search to reach a local minima and then <i>penalise</i>
+features which frequently occur in subsequent minima such that over time the local search can break out of local minima in
+the search landscape which is defined by the gradient of the objective function.
+</p>
+
+<p>
+In the context of the TSP, a solution <i>feature</i> is an $edge_{p, q}$ defining a connection between points $p$ and $q$
+which is present in the tour. GLS maintains a penalty matrix where each possible $edge_{p, q}$ is associated with a $penalty_{p, q}$ term. An augmented cost function $h(s)$ is then created by including the penalty terms in the original $g(s)$ cost
+function as follows:
+</p>
+
+$$
+h(s) = g(s) + \lambda \sum_{i=1}^{N} penalty_{i-1, i}
+$$
+
+<p>
+The $\lambda$ parameter controls the importance of the penalties to the underlying local search. Since the local search procedure will consider candidate edges to swap, $\lambda$ is set to the average contributing cost of an edge with respect to the
+overall tour cost:
+</p>
+
+$$
+\lambda = \alpha\frac{g(minima)}{N}
+$$
+
+<p>
+The $\alpha$ parameter is then a meta-parameter of the GLS algorithm and must be determined upfront. There is some guidance as to what this should be in <a href="https://www.sciencedirect.com/science/article/abs/pii/S037722179800099X">this paper</a> depending on the choice of underlying local search. In my testing, I've found
+a low value of $0.05$ to be effective in most cases. One possible improvement may be to control this meta parameter by some other metaheuristic such as Simulated Annealing, which would result in a meta-metaheuristic!
+</p>
+
+<p>
+As mentioned previously, GLS allows the underlying local search procedure to run until it becomes stuck in a local minima.
+With 2-Opt FLS, this means waiting until it is no longer possible to perform any 2-Opt moves which would yield an
+improvement. At this point, GLS takes over and assigns penalties to the features (edges) present in the 2-Optimal solution
+$s$.  
+</p>
+
+<p>
+In each GLS iteration, GLS decides <i>which</i> edges to penalise by selecting edges which maximise a utility function designed to favour inidividually shorter edges:
+</p>
+
+$$
+util(s, edge_{p, q}) = I_{edge_{p, q}(s)} \frac{distance_{p, q}}{1 + penalty_{p, q}}
+$$
+
+Where
+
+$$
+I_{edge_{p, q}}(s) = \begin{cases} 1 & \text{if } edge_{p, q} \in s \\ 0 & \text{otherwise.} \end{cases}
+$$
+
+<p>
+This has the effect that edges are penalised up until a point (if they continuously appear in local minima solution) where
+the utility of penalising further will be less than some other edge. This is the really special part of GLS: the search
+landscape is continuously modified by levelling over minima until the search can fall into another. I like to think of it
+as a strategy to escape from a well by filling the well with water until you can climb over the top (and then fall
+into another well).
+</p>
+
+<h2>Applying GLS-2-Opt-FLS to the Kaggle challenge</h2>
+
+<p>
+My first submission to the competition was a 2-Optimal tour (score 1641736.82), found with the standalone 2-Opt FLS algorithm.
+For this I ignored the prime penalty. My score was quite low, although far from the bottom. The next step was to try out
+GLS, still, ignoring the prime penalty soft constraint for now.
+</p>
+
+<h3>Huge penalty matrix</h3>
+
+<p>
+The problem I've always had with GLS is the dependence on the penalty matrix. For large enough problems, use of a penalty
+matrix becomes an issue.  
+</p>
+
+<p>
+For symmetric instances of the TSP problem, we do not need the entire $N^2$ matrix, and can store the penalties in an
+array with length $N(N-1)/2$. We can also make use of 16 bit shorts instead of 32 bit integers, reducing the memory
+footprint further. In Java, the maximum array length is $2^{31} - 3$, which means we could fit a $2^{16} = 65,536$ point problem
+into a single array which would be approx 4g short/8g integer (excluding the extra JVM memory overhead). 
+</p>
+
+<p>
+For problems with more than $2^{16}$ points, the penalties could be split across a bunch of arrays held in a single collection.
+For big enough problems such as the Kaggle TSP (198k points), even this becomes impractical: My machine has 32g RAM, which
+is less than the theroretical 36.5g of memory required to hold a (short) penalty matrix of this size. 
+</p>
+
+<p>
+One possibility could be to store the penalties in a sparse-array or hashmap. This would work if the penalty matrix is usually sparse -
+which I have not yet checked.
+</p>
+
+<p>
+In the case of a non sparse matrix, an alternative could be to make use of a <a href="https://en.wikipedia.org/wiki/Memory-mapped_file">memory mapped file</a>, inspired from
+<a href="http://vanillajava.blogspot.com/2011/12/using-memory-mapped-file-for-huge.html">here</a> which is the approach I've taken in this case. This allows for a truely massive
+array to accessible to the Java process. Memory mapped files can also be used for high performance <a href="https://en.wikipedia.org/wiki/Inter-process_communication">IPC</a>, such as
+in the <a href="https://github.com/OpenHFT/Chronicle-Queue">Chronicle queue</a> project.
+</p>
+
+
+<p>
+Implementation of the memory mapped file matrix is similar to the approach above in which a single virtual array is backed by a collection
+of arrays. A request for an array index $i$ will be mapped to a specific array $i / arrayLength$ and a specific position in that array $i \bmod arrayLength$.
+The difference is that each array is a <a href="https://docs.oracle.com/javase/10/docs/api/java/nio/ByteBuffer.html">ByteBuffer</a> aligned and mapped to a single
+<a href="https://docs.oracle.com/javase/10/docs/api/java/io/RandomAccessFile.html">RandomAccessFile</a>.
+</p>
+
+<p>
+This matrix will ultimately be accessed from within a for loop. As such, creating a memory mapped file on a mechanical drive would be a pretty bad idea. It would be even worse if
+the underlying local search algorithm was stochastic (evaluating random edges) since this would result in random, as oppossed to sequential reads. I initially placed the memory mapped
+file on my Samsung SSD 850, which is advertised as capable of 550MB sequential reads per second (10,000 read <a href="https://en.wikipedia.org/wiki/IOPS">IOPS</a>):
+</p>
+
+<pre>
+[phil@arasaka ~]$ sudo hdparm -Tt /dev/sda
+
+/dev/sda:
+ Timing cached reads:   37656 MB in  1.99 seconds = 18909.36 MB/sec
+ Timing buffered disk reads: 1496 MB in  3.00 seconds = 498.22 MB/sec
+</pre>
+
+<p>
+This worked, however really slowed down the algorithm. (I'll add some benchmarks later). I used this as an excuse to treat myself to a <a href="https://en.wikipedia.org/wiki/NVM_Express">NVM Express (NVMe)</a> stick capable of 480K IOPS:
+</p>
+
+<pre>
+[phil@arasaka ~]$ sudo hdparm -Tt /dev/nvme0n1p1 
+
+/dev/nvme0n1p1:
+ Timing cached reads:   37378 MB in  1.99 seconds = 18769.15 MB/sec
+ Timing buffered disk reads: 7408 MB in  3.00 seconds = 2469.10 MB/sec
+</pre>
+
+<p>
+Which means ~1.3 billion (short) penalties per second. This helped a great deal. To speed things up a little more, I implemented a <a href="https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_recently_used_(LRU)">Least recently used (LRU)</a> cache on-top of the memory mapped file penalty matrix with the intention to minimise the number of read operations.
+</p>
+
+<p>
+The coolest thing about having a memory mapped file penalty matrix is the fact that it's contents (37G in this case) are persisted to disk. As such, I was able to
+stop and start the algorithm at will as to make some tweaks/fix bugs etc.
+</p>
+
+
+<h4>The competition</h4>
+
+<p>
+Having found a way to use GLS with a large matrix, I was able to escape the local minima found by my first 2-optimal submission. I then left the algo. running
+with the plan to do some other things with my vacation, such as read books and other analogue stuff (my actual plan was to learn Rust by porting this GLS-FLS algo.). The plan was to do that, then check in at the end of the competition
+to collect my gold medal. I was of course, deluded.
+</p>
+
+<p>
+While my solution was making slow but steady progress without even considering the prime penalty, I found it hard to progress on the leaderboard.
+It turned out that many of the participants were using existing TSP solvers, notably the <a href="http://www.math.uwaterloo.ca/tsp/concorde.html">Concorde TSP solver</a> and <a href="http://akira.ruc.dk/~keld/research/LKH-3/">LKH solver</a>. The LKH solver is an implementation of the <a href="https://en.wikipedia.org/wiki/Lin%E2%80%93Kernighan_heuristic">Lin–Kernighan heuristic</a> and was (of course) able to produce significantly better tours in a much shorter period of time compared to my own solver. The rules of the competition did not forbid this, so it was
+really nice when <a href="https://www.kaggle.com/bicotsp">William Cook</a>, author of Concorde and <a href="https://www.kaggle.com/keldhelsgaun">Keld Helsgaun</a> author of LKH solver,
+showed up in the competition as a team, straight in at number 1 where they stayed to eventually win. 
+</p>
+
+<p>
+I made some changes to my code as to accept as input an existing 2-optimal tour (a 4 optimal tour is 3 and 2 optimal), and started work on adding the prime penalty to the FLS objective
+function. The idea was to generate a good tour ignoring the prime penalties using the LKH solver and then use this as a starting point to fine tune with GLS-FLS with prime penalties
+enabled.
+</p>
+
+<p>
+Before I could finish, some really good <a href="https://www.kaggle.com/c/traveling-santa-2018-prime-paths/kernels">kernels</a> started to appear. The trouble was that anyone could run
+these high quality solutions and get a good score. To make matters worse, the kernels were posted with output solutions, so it was not even necessary to run, let alone understand the code to
+obtain a good score. There were then 100s of entries (above my solution) which were the result of dragging and dropping a file without even the need to touch a keyboard! This continued
+to the very last few days, and even 24 hours before the deadline.
+</p>
+
+<p>
+Having added the prime penalties to my objective function I had fired up GLS-FLS again using as input a good tour found from LKH. Again, I was producing slow improvements, slowly edging
+my way up the leaderboard. The tipping point came with a kernel, aptly titled <a href="https://www.kaggle.com/kostyaatarik/shame-on-me">Shame on me.</a>. This was a really nice idea,
+however was posted quite late in the competition - I was very quickly buried much further by 100s of drag-and-drop entries. Given the limited time, my strategy then switched to taking the
+output of these high scoring kernels and feeding them into my own algo.
+</p>
+
+<h4>End result</h4>
+
+<p>
+In the end, I managed to come away with a bronze medal (140/1874). My highest position in the game was a silver, at position 73.
+This was the first competition I had invested a significant amount of time into and was optimising right up until the last minute of the game.
+It was great fun revisiting GLS and especially getting it to work on such a large TSP instance.
+In the process, I've picked up a fresh understanding (and appreciation) for this elegant metaheuristic and started to think of some possible extensions. I'm looking forward to next year :)
+</p>
+
+
+<h2>Code</h2>
+
+<p>
+GLS-FLS code on <a href="https://github.com/phil8192/tsp-java">Github</a>.
+</p>
+
+
+<h2>Further reading</h2>
+
+<a href="http://www.bracil.net/CSP/gls.html">The Guided Local Search Project</a>. University of Essex.<br/><br/>
+<a href="https://www.sciencedirect.com/science/article/abs/pii/S037722179800099X">Guided local search and its application to the traveling salesman problem</a>. Christos Voudouris, Edward Tsang. European Journal of Operational Research. Volume 113, Issue 2, March 1999, Pages 469-499.<br/><br/>
+<a href="https://pubsonline.informs.org/doi/abs/10.1287/ijoc.4.4.387">Fast Algorithms for Geometric Traveling Salesman Problems</a>. Jon Jouis Bentley, ORSA Journal on Computing, 1992.
+<br/><br/>
+<a href="https://pubsonline.informs.org/doi/10.1287/opre.6.6.791">A Method for Solving Traveling-Salesman Problems</a>. G. A. Croes, Operations Research, 1958.
+
+<br/>
+<br/>
+<br/>
+<br/>
+EOF
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+
+
+
+<script>hljs.initHighlightingOnLoad();</script>
+
+</body>
+</html>

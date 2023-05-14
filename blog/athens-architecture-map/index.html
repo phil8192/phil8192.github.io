@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Athens historical architecture map</title>
+<link href="https://fonts.googleapis.com/css?family=Jim+Nightshade|Press+Start+2P|Aldrich|Roboto" rel="stylesheet">
+<link href="../../css/parasec2.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+</head>
+<body>
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="#ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+<div id="content-wrapper">
+
+<h1>Athens historical architecture map</h1>
+<h3>Fri Jan 15 --:--:-- -- 2010</h3>
+
+<img src="arch01.png" alt="Athens architecture map - 01"/>
+<p>
+Using google maps API and by geocoding data from <a href="http://www.eie.gr/archaeologia/gr/index.aspx">EIE</a> I've constructed a <a href="http://zee.gr/architecture/index.php?lang=en">map of interesting architecture in Athens</a>. Buildings can be filtered according to year of construction by using a slidebar (see screenshot above) + the map has a basic search function. The project was implemented in Javascript, PHP + MySql with data-preprocessing in bash.
+</p>
+
+<img src="arch02.png" alt="Athens architecture map - 02"/>
+
+
+<p>
+Using a <a href="http://www.hipkiss.org/cgi-bin/maps.pl?cat=athens">map</a> of Athens published in 1890 from <a href="http://en.wikipedia.org/wiki/Meyers_Konversations-Lexikon">Meyers Konversationslexikon</a>, following the design of modern Athens by architects <a href="http://en.wikipedia.org/wiki/Stamatios_Kleanthis">Stamatis Kleanthis</a>, Eduard Schaubert &amp; <a href="http://en.wikipedia.org/wiki/Leo_von_Klenze">Leo von Klenze</a> , I aligned the streets from the 1890 survey with the streets as they exist today. To perform the alignment, I used MapCruncher from Microsoft Research.
+</p>
+
+<p>
+The 1890 survey is astonishingly accurate - It's fascinating how this level of precision cartography was achieved without modern day tools such as GPS. Subsequently, the original survey can be imposed on to the modern map with very minor corrections.
+</p>
+
+
+<h4>Central Athens</h4>
+<img src="1.png" alt="central athens"/>
+
+<h4>Kolonaki</h4>
+<img src="2.png" alt="kolonaki"/>
+
+<p>
+Above is a detail of <a href="http://en.wikipedia.org/wiki/Kolonaki">Kolonaki</a>. According to the 1890 map, the modern day Hilton hotel was built on top of a Barracks & everything south of <a href="http://en.wikipedia.org/wiki/Vasilissis_Sofias_Avenue">Vasilissis Sofias Avenue</a> was undeveloped.. You can also see how the development of Kolonaki has spread up into <a href="http://en.wikipedia.org/wiki/Mount_Lycabettus">Lykavittos</a>.
+</p>
+
+<h4>Filopappou Hill / Hill of the Muses</h4>
+<img src="3.png" alt="Filopappou Hill"/>
+
+<h4>Acadamia</h4>
+<img src="acadamia.png" alt="acadamia"/>
+
+<h4>Gazi</h4>
+<img src="gazi.png" alt="gazi"/>
+
+<h4>Ilisia</h4>
+<img src="ilisia.png" alt="ilisia"/>
+
+<h4>Kato Petralona</h4>
+<img src="pireos.png" alt="kato petralona"/>
+
+<h4>Thiseio</h4>
+<img src="thissio.png" alt="thiseio"/>
+
+<h4>46 Septemviou</h4>
+<img src="sv.png" alt="Athens architecture map - 03"/>
+
+<p>
+Back to the architecture map - I've noticed this building a few times whilst coming back from Athens in a taxi. According to EIE, it was built in 1925. I especially like this one - it stands in huge contrast to the hastily built modern slabs of concrete around it. Here it is on the map - <a href="http://zee.gr/architecture/index.php?lang=en&id=134">46 Septemviou &amp; Marni Steet</a>
+</p>
+
+<!-- img src="taxi-02.png" style="float:left;margin-right:10px;width:245px;height:172px;"/ -->
+<!-- br style="clear:both"/ -->
+
+
+
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+</body>
+</html>

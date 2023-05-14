@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta property="og:title" content="Receiving NOAA weather satellite images"/>
+<meta property="og:description" content="Using Gpredict, Gqrx, rtl-sdr and a Quadrifilar Helicoidal Antenna (QFH) to receive real-time NOAA satellite images."/>
+<meta property="og:image" content="http://parasec.net/blog/noaa-weather-satellites/splash.png"/>
+<title>Receiving NOAA weather satellite images</title> 
+<link href="https://fonts.googleapis.com/css?family=Jim+Nightshade|Press+Start+2P|Aldrich|Roboto" rel="stylesheet">
+<link href="../../css/parasec2.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+</head>
+<body>
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="#ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+<div id="content-wrapper">
+
+<div id="blog-header" style="background-image: url('splash.png'); background-color: #000000; color: #ffffff;">
+<h1>Receiving NOAA weather satellite images</h1>
+<h3>Thu Aug  9 09:58:20 UTC 2018</h3>
+</div>
+
+<p>
+Since 1960, <a href="https://en.wikipedia.org/wiki/National_Oceanic_and_Atmospheric_Administration">The National Oceanic and Atmospheric Administration</a> (<a href="http://www.noaa.gov/">NOAA</a>) have operated a series of weather satellites as part of the <a href="https://en.wikipedia.org/wiki/Polar_Operational_Environmental_Satellites">Polar-orbiting Operational Environmental Satellite (POES)</a> programme. The programme has since ended and will be superseded by the <a href="https://en.wikipedia.org/wiki/Joint_Polar_Satellite_System">Joint Polar Satellite System (JPSS)</a> of which the first <a href="https://en.wikipedia.org/wiki/NOAA-20">satellite</a> was <a href="https://www.youtube.com/watch?v=GJtEGtbfJ34">launched</a> at the end of 2017.
+</p>
+
+<img src="tiros_01.jpg" alt="tiros"/>
+<br/>
+(<a href="https://en.wikipedia.org/wiki/TIROS-1">TIROS v1</a> - <a href="https://en.wikipedia.org/wiki/Television_Infrared_Observation_Satellite">Television Infrared Observation Satellite</a> launched in 1960. Img src: NOAA <a href="https://www.ospo.noaa.gov/Organization/History/POES_history.html">POES history</a>)
+
+<p>
+The first POES satellite, the TIROS 1 (shown above), was intended to test the
+effectiveness of satellites for remote sensing and earth observation. The
+satellite was a great success, and was immediately of use in weather
+forecasting. TIROS 1 captured this first (beautiful) TV image of the earth:
+</p>
+
+<img src="tiros_02.png" alt="first tv image of earth"/>
+<br/>
+(Img src: <a href="https://en.wikipedia.org/wiki/Television_Infrared_Observation_Satellite">wikipedia</a>. Original: NASA</a>)
+
+<p>
+Whilst TIROS 1 is *<a href="https://www.n2yo.com/?s=29">still</a>* hurtling
+around the earth at 16848 mph, the <a href="https://www.ospo.noaa.gov/Operations/POES/status.html">current</a> POES system consists of 3
+<a href="https://en.wikipedia.org/wiki/TIROS-N">TIROS-N</a> satellites:
+<a href="https://en.wikipedia.org/wiki/NOAA-15">NOAA 15</a>,
+<a href="https://en.wikipedia.org/wiki/NOAA-18">18</a>,
+<a href="https://en.wikipedia.org/wiki/NOAA-19">19</a>, launched in 1998, 2005,
+and 2009 respectively.
+</p>
+
+<p>
+These 3 1,457 kilo satellites orbit at
+<a href="https://en.wikipedia.org/wiki/Apsis">~</a>520 miles altitude, at the
+same speed of TIROS 1 (16848 mph) such that each craft completes a trip around
+the circumference of the Earth in ~101 minutes: the satellites follow a
+particular orbit type known as
+<a href="https://en.wikipedia.org/wiki/Sun-synchronous_orbit">Sun-synchronous orbit (SSO)</a>.
+The orbit guarantees that each point on the Earth will be observed at least once every 12 hours.
+</p>
+
+<p>
+The satellites transmit on-board sensor data in
+<a href="https://en.wikipedia.org/wiki/High-resolution_picture_transmission">High-resolution picture transmission (HRPT)</a>
+and
+<a href="https://en.wikipedia.org/wiki/Automatic_picture_transmission">Automatic Picture Transmission (APT)</a>
+at ~1700 MHz, ~137 MHz respectively. In the world of amateur radio and earth
+observation, it is well known and quite a popular pursuit to capture and decode
+APT data, and more so since the advent of <a href="https://www.rtl-sdr.com/">RTL-SDR</a>. Since reading a number of
+<a href="https://www.rtl-sdr.com/rtl-sdr-tutorial-receiving-noaa-weather-satellite-images/">guides</a>
+on how to intercept and decode the images continuously transmitted from
+these satellites, I have been keen to give it a go myself.
+</p>
+
+
+<h2>Tracking the satellites</h2>
+
+<p>
+As mentioned before, the three NOAA satellites each make a complete orbit in
+~101 minutes. In order to capture the APT transmission from a satellite, it
+must first be within line of sight of the base station/receiver.
+</p>
+
+<p>
+The US air-force keeps track of all orbiting objects and maintains a
+<a href="https://en.wikipedia.org/wiki/Two-line_element_set">two-line element set (TLE)</a>
+for each tracked object. This format, which is described in great detail on the
+<a href="https://www.celestrak.com/NORAD/documentation/">celestrak</a> site,
+was originally intended for punch-card machines and contains a minimal set of
+parameters which can be used to derive the trajectory of an orbiting object.
+The TLE data for the NOAA satellites is available from
+<a href="http://www.celestrak.com/NORAD/elements/noaa.txt">celestrak</a>.
+</p>
+
+<p>
+Fortunately, many projects exist to decode this format.
+<a href="https://github.com/pytroll/pyorbital">pyorbital</a> and
+<a href="https://github.com/brandon-rhodes/python-sgp4">py-sgp4</a> are some
+python options,
+<a href="https://github.com/shashwatak/satellite-js">satellite-js</a> seems like
+a popular javascript implementation. A neat UI option might be
+<a href="https://github.com/trehn/termtrack">termtrack</a> - a console based
+satellite tracking UI and the popular and well-established
+<a href="http://gpredict.oz9aec.net/">gpredict</a>, which I have used here.
+</p>
+
+<img src="gpredict.png" alt="noaa gpredict"/>
+
+<p>
+Having specified the location of a base station, gpredict will track the
+location of specified satellites and calculate the precise time, location and
+track of future passes with respect to the horizon to horizon view of the base
+station. When a NOAA satellite passes overhead, it will be possible to receive
+it's APT transmission which will be strongest when the satellite is directly
+overhead and weakest as it ascends/descends from/to the horizon.
+</p>
+
+<p>
+I find the "sky at a glance" feature very useful as it provides a schedule of
+upcoming passes for each of the satellites I am tracking. Currently, I will
+head outside to receive the transmission from time to time, although plan to
+automate this later on.
+</p>
+
+
+<h2>Quadrifilar Helicoidal Antenna (QFH)</h2>
+
+<p>
+To receive the APT signal, it is necessary to use either a
+<a href="https://en.wikipedia.org/wiki/Turnstile_antenna">turnstile</a>
+or a <a href="http://jcoppens.com/ant/qfh/index.en.php">QFH</a> antenna. The QFH
+antenna is apparently the best option, with many <a href="https://www.instructables.com/id/NOAA-Satellite-Signals-with-a-PVC-QFH-Antenna-and-/">guides</a>
+on how to construct it.
+</p>
+
+<p>
+I have wanted to make one of these antennas for a long time now, however found
+the design quite confusing. One of the first guides I read was by the late <a href="http://www.g4ilo.com/">Julian Moss (G4ILO)</a>.
+I found Julian's <a href="http://www.g4ilo.com/qfh.html">guide</a> invaluable in
+understanding the wiring and eventually used <a href="http://jcoppens.com/ant/qfh/img/v2/012.jpeg">this</a>
+design along with the default settings for <a href="http://jcoppens.com/ant/qfh/calc.en.php">this</a> QFH calculator.
+</p>
+
+<img alt="QFH antenna - 01" src="qfh_antenna_01.jpg"/>
+
+<p>
+Most guides make use of PVC piping to construct the frame. After some
+experimentation, I managed to make a frame using a few garden canes cut to the
+dimensions specified by the <a href="http://jcoppens.com/ant/qfh/calc.en.php">QFH calculator</a>
+along with lots of cable zip ties. For the antenna, I have made use of 50 ohm
+coaxial cable, as per the G4ILO guide.
+</p>
+
+<img alt="QFH antenna - 02" src="qfh_antenna_02.jpg"/>
+
+<p>
+The resulting antenna, shown above attached to my bike work stand is
+surprisingly stable, despite being made from cane. It has the added bonus of
+being a little more environmentally friendly than the PVC version :)
+Construction of the antenna has been one of the most enjoyable parts of the 
+project for me. 
+</p>
+
+
+
+<h2>Receiving the signal</h2>
+
+<p>
+The NOAA satellites transmit Automatic Picture Transmission (APT) on the
+following frequencies:
+</p>
+
+<table>
+  <tr><td>NOAA 15</td><td>137.62 MHz</td></tr>
+  <tr><td>NOAA 18</td><td>137.9125 MHz</td></tr>
+  <tr><td>NOAA 19</td><td>137.1 MHz</td></tr>
+</table>
+
+<p>
+I am using <a href="http://gqrx.dk/">Gqrx SDR</a> in combination with a cheap
+RTL2832U USB TV dongle attached to my QFH antenna to record the NOAA APT
+transmissions. To capture one of the signals, I first wait until one of the
+satellites enters range with Gpredict, then record the transmission
+for as long as possible as the satellite passes from horizon to horizon.
+</p>
+
+<img src="noaa_19_2018-07-13_15_30.png" alt="gqrx noaa 18"/>
+
+<p>
+The APT data, which is transmitted as an audible FM signal is an interesting
+format. The <a href="https://www.sigidwiki.com/wiki/Automatic_Picture_Transmission_(APT)">Signal identification guide</a>
+site describes the format in lots of detail as does the <a href="https://en.wikipedia.org/wiki/Automatic_picture_transmission">wikipedia</a>
+page. Briefly, the transmission consists of a pair of 4km per pixel 8-bit images,
+synchronisation and telemetry data. The images are obtained from an advanced
+very-high-resolution radiometer (AVHRR) sensor, one of which is long-wave 
+infrared and the other mid-wave infrared or near-visible if the satellite is in
+daylight.
+</p>
+
+<img src="APT_format.png" alt="APT protocol"/>
+<br/>
+(Img src: <a href="https://www.sigidwiki.com/wiki/Automatic_Picture_Transmission_(APT)">Signal identification wiki</a>)
+
+<p>
+The image (which contains both infrared, visible and sychronisation data) is
+transmitted at a rate of 2 lines per second. Each line is 2080 pixels containing
+2*909 image pixels and 262 pixels of synchronisation data.
+</p>
+
+<img src="doppler.png" alt="gqrx noaa doppler shift"/>
+
+<p>
+As the satellite travels overhead, the signal drifts, exhibiting a
+<a href="https://en.wikipedia.org/wiki/Doppler_effect">doppler shift</a>
+as shown above for a NOAA 19 pass. The actual signal sounds like this:
+</p>
+
+<audio controls loop>
+  <source src="noaa_19.wav" type="audio/wav">
+  :/ your browser does not support the audio element.
+</audio>
+
+<p>
+Having recorded the pass using Gqrx, the next step is to convert the audible
+signal into an image. I hope to write my own code to do this at some point, but
+for now, have made use of <a href="https://wxtoimgrestored.xyz/">WXtoImg</a>.
+WXtoImg takes as input a .wav containing the APT signal and outputs the raw
+greyscale image data, false colour images and can even overlay a cloud-cover
+heatmap indicating precipitation probability derived from a multispectral
+analysis,
+</p>
+
+
+<h2>NOAA 15</h2>
+
+<p>
+<a href="https://en.wikipedia.org/wiki/NOAA-15">NOAA 15</a> is the oldest of the
+operational NOAA satellites, launched on 1998-05-13.
+</p>
+
+<img alt="noaa 15 - 01" src="NOAA-M-01.jpg"/>
+<br/>
+(Img src: <a href="https://en.wikipedia.org/wiki/NOAA-15">Wikipedia</a> original src dead. Also, I think this is NOAA 17)
+
+<p>
+In the 1960s, TIROS v1 made
+a significant impact on weather forecasting capability. Later, toward the end of
+the 1990s, NOAA 15, with it's microwave sounding unit capable of detecting
+temperature and humidity, significantly improved forecasting capability,
+especially in the
+<a href="https://www.ecmwf.int/en/about/media-centre/news/2018/noaa-satellite-launch-20-years-ago-marked-start-new-era">southern hemisphere</a>
+where there were fewer weather observations.
+</p>
+
+
+<img alt="noaa 15 - 02" src="satellite_NOAA-15.jpg"/>
+<br/>
+(Img src: <a href="https://twitter.com/NOAASatellites/status/864148496697483264">NOAA/twitter</a>)
+
+
+<p>
+So far, I have captured a couple of images from NOAA 15, shown below. The first
+shows the raw image format described by the APT protocol: 2 909 pixel wide 
+images along with synchronisation and telemetry data in the left and right
+margins.
+</p>
+
+<img alt="noaa 15 apt - 01" src="noaa_15_01.jpg"/>
+<br/>
+(2018-07-03)
+
+<p>
+The image on the left is from the infrared sensor and has been post-processed
+with the wxtoimg tool to show precipitation probability. The right hand side
+image is from the near-visible sensor and has been artificially coloured.
+</p>
+
+<img alt="noaa 15 apt - 02" src="noaa_15_02.jpg"/>
+<br/>
+(2018-07-01)
+
+<p>
+The image above shows a raw greyscale image with no post-processing. I captured
+this image with an earlier attempt at the QFH antenna: notice the substantial
+noise and signal drop-outs. The drop-outs are actually due to poor wire
+connectivity and me moving around a bit while recording the signal.
+</p>
+
+
+
+<h2>NOAA 18</h2>
+
+<p>
+After NOAA 15, there was NOAA 16 + 17. <a href="https://en.wikipedia.org/wiki/NOAA-17">NOAA 17</a>
+was decommissioned in 2013, whereas <a href="https://en.wikipedia.org/wiki/NOAA-16">NOAA 16</a>, after
+a critical failure was decommissioned in 2014. NOAA 16 has since broken up, and now consists of 275
+individually tracked objects! (see <a href="https://en.wikipedia.org/wiki/NOAA-16">wikipedia</a> article.
+</p>
+ 
+
+<img alt="NOAA 18 - 01" src="noaa_18_01.jpg"/>
+<br/>
+(Img src: <a href="https://en.wikipedia.org/wiki/NOAA-18">wikipedia</a> original: <a href="https://www.flickr.com/photos/noaaphotolib/5278183686/">NOAA NESDIS Environmental Visualization Laboratory</a>)
+
+<p>
+<a href="https://en.wikipedia.org/wiki/NOAA-18">NOAA 18</a> is thus the next
+(operational) satellite in the series. It was launched on 20-05-2005. Note that
+the NOAA craft all have their own QFH antenna, clearly visible in this image of NOAA 18:
+</p>
+
+<img alt="NOAA 18 - 02" src="noaa_18_02.jpg"/>
+<br/>
+(Img src: <a href="https://www.space.com/1051-delta-2-rocket-launch-earth-weather-probe.html">space.com</a> original: NASA/KSC)
+
+<p>
+The following image is by far the most interesting image I have captured from
+NOAA 18 so far. It shows a clear view of the Bay of Biscay and edge of the
+Mediterranean sea. The noise at the top and bottom of the image is due to
+buildings and hills on my horizon. Open the image in a new tab for a higher
+resolution view.
+</p>
+
+<img alt="noaa 18 apt - 01" src="noaa_18_01_apt.jpg"/>
+<br/>
+(2018-07-09 08:53 UTC)
+
+<p>
+In the following image, (I think) the wavelength of the sensor has been
+switched part way through image capture as the satellite enters a nocturnal
+orbit.
+</p>
+
+<img alt="noaa 18 apt - 02" src="noaa_18_02_apt.jpg"/>
+<br/>
+(2018-07-04)
+
+<p>
+The following is the first image I managed to receive using an early version of
+the QFH antenna. The image was received at sunset which emphasises cloud
+features. Whilst not a particularly interesting image, it was a nice moment when
+decoded.
+</p>
+
+<img alt="noaa 18 apt - 03" src="noaa_18_03_apt.jpg"/>
+<br/>
+(2018-06-30)
+
+<h2>NOAA 19</h2>
+
+<p>
+<a href="https://en.wikipedia.org/wiki/NOAA-19">NOAA 19</a> was <a href="https://www.youtube.com/watch?v=2axIyPPk7Jg">launched</a>
+2009-02-06 and is the <a href="https://www.youtube.com/watch?v=nxhlfBLS8rg">last</a> satellite in the <a href="https://en.wikipedia.org/wiki/Polar_Operational_Environmental_Satellites">POES</a>
+programme. 
+</p>
+
+<img alt="NOAA 19" src="287306main_TIROS_N-prime.jpg"/>
+<br/>
+(Image: Lockheed Martin. <a href="https://mobile.arc.nasa.gov/public/iexplore/missions/pages/51.htm">src</a>)
+
+<img alt="NOAA 19 clean room" src="NOAA-N%27_satellite_in_Vandenberg_AFB_clean_room.jpg"/>
+<br/>
+(Image: NASA. <a href="https://www.nasa.gov/mission_pages/NOAA-N-Prime/multimedia/gallery/08-11-11-3.html">src</a>)
+
+<p>
+During manufacture, the satellite detached from it's base which caused $135 million
+in damage. Oops. More info on the Wikipedia page and the <a href="https://www.nasa.gov/pdf/65776main_noaa_np_mishap.pdf">official NASA report</a>.
+</p>
+
+<img alt="NOAA 19 accident" src="NOAA-N%27_accident.jpg"/>
+<br/>
+(Image: NASA. <a href="https://en.wikipedia.org/wiki/NOAA-19">src</a>)
+
+<p>
+I have captured a few images from NOAA 19. This is the most recent one:
+</p>
+
+<img alt="noaa 19 apt - july 2018" src="noaa_19_31_jul.jpg"/>
+<br/>
+(2018-07-31 15:36 UTC)
+
+<p>
+The image below is my favourite so far - open the image in a new tab for a higher resolution
+view. It shows a reflection of the sun in the North Atlantic Ocean, central
+Europe and even the Strait of Gibraltar in the noisy part of the image.
+</p>
+
+<img alt="noaa 19 apt - 01" src="noaa_19_01.jpg"/>
+<br/>
+(2018-07-13 15:30 UTC)
+
+<p>
+This final image shows the UK, Norway and Sweden quite well. It was taken during
+a recent spell of warm weather - much of the UK is cloud free.
+</p>
+
+<img alt="noaa 19 apt - 02" src="noaa_19_02.jpg"/>
+<br/>
+(2018-07-05 15:15 UTC)
+
+<img alt="noaa 19 apt - 03" src="uk.png"/>
+
+
+<h2>Summary</h2>
+
+<p>
+I plan to automate this whole process and combine the weather satellite images
+with data from my <a href="http://parasec.net/blog/influxdb-weather/">weather station</a>.
+For now, it is quite fun to go out into the garden once in a while to capture an
+instantaneous image as a satellite passes overhead. I'm planning to record some
+passes from the peak of a local (&gt; 300m) hill which I hope will be free of the noise
+near the horizon in my current images. 
+</p>
+
+<p>
+When I have automated this process, I plan to try and receive
+<a href="https://en.wikipedia.org/wiki/High-resolution_picture_transmission">High-resolution picture transmission (HRPTs)</a>
+from the same series of satellites.
+</p>
+
+<h2>Further reading</h2>
+
+<p>
+<a href="http://www.geo-web.org.uk/quarterly/geoq58.pdf">GEO Newsletter 58 - Twenty Years of NOAA 15 Reception</a> from <a href="http://www.geo-web.org.uk/">The Independent Organisation for Weather Satellite and Earth Observation Enthusiasts</a>.
+</p>
+
+<p>
+EOF
+</p>
+
+
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+</body>
+</html>

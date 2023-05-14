@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Streaming and reconstructing a Limit Order Book from order event data</title>
+
+<link href="https://fonts.googleapis.com/css?family=Jim+Nightshade|Press+Start+2P|Aldrich|Roboto" rel="stylesheet">
+
+<link href="../../css/parasec2.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+</head>
+<body>
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="#ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+
+<div id="content-wrapper">
+
+<h1>Limit Order Book</h1>
+<h2>Streaming and reconstructing Bitstamp's order book from order event data</h2>
+<h3>Fri Jul 04 04:16:21 UTC 2014</h3>
+
+<p>
+In order to begin looking into market microstructure I implemented a Limit Order Book. The (very rough) implementation has 2 modes of operation: 
+</p>
+
+<p>
+1) It continuously reads from a stream of buy/sell order events (new order, modify order, cancel order) to produce a diabolical ascii chart of order book depth along with time and sales. (shown in the below .gif) 
+</p>
+
+<p>
+2) It can re-construct an order book from archived order book events. In both cases, a log file is kept from which 225 indicators can be extracted into a csv file. The intention of this project was simply to derive this .csv file for use elsewhere, hence the mess. I intend it to be a starting point for something better. 
+</p>
+
+<p>
+I do not have access to order data for a conventional exchange, so this implementation is based on data obtained from Bitcoin exchanges. Specifically streaming data via a websocket from Bitstamp. New (planned) implementation will abstract this away to a higher level protocol.
+</p>
+
+<img src="limit-order-book.gif" alt="limit order book" width="1187" height="740" style="width: 1187px; height: 740px;"/>
+
+<p>
+Divided into 2 sections, the left hand side of the book shows the depth of BUY limit orders (bids), while the right hand side shows the depth of SELL (asks) limit orders. At the top of bid side of the book on the left is the current best bid, while the top of the ask side of the book is the current best ask. Each row is a price level, decreasing/increasing for the bid/ask side respectively.
+</p>
+
+<p>
+Each level consists of 5 columns: The percentage difference from the best bid/ask (the depth), the cumulative sum of volume/liquidity up until and including the price level, the number of orders enqueued at this price level, the amount of volume/liquidity available at this individual price level, and finally, the actual price of this this level.
+</p>
+
+<p>
+For example, on the bid side, an entry of: 0.42%, 157.40063272, 1, 59.68000000, 656.26, indicates that this price level is 0.42% less than the current best bid, 157.4 units of volume would need to be sold before this level is reached, there is 1 order at this level (to buy 59.68 units) @ 656.26 dollars. 
+</p>
+
+<p>
+Trades are shown on the right hand side, in the third column. The purpose of this implementation is to reconstruct/infer trades given a stream of bid/ask limit order events.
+</p>
+
+<p>
+These trades are the result of this inference: showing the trade direction (BUY = a buy market order hit an ask limit order) (SELL = a sell market order hit a bid limit order). The implementation can sometimes match makers to takers: A maker is an order to buy/sell placed at a price limit _in_ the order book - i.e., the trader is providing liquidity, whereas a taker is an order to buy/sell that will not be placed in the order book (it will consume maker orders until it is filled) - the trader is said to be removing liquidity. As such they pay the price: the market spread + the Volume Weighted Average Price for the market impact. 
+</p>
+
+<p>
+As mentioned, the code is _very_ rough. However for anyone interested (it is useful for monitoring the bitstamp order book in real time), the code + a detailed description of the derived indicators is available <a href="https://github.com/phil8192/limit-order-book" target="_blank">here</a>.
+</p>
+
+
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+</body>
+</html>

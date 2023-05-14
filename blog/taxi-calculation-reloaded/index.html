@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Athens Taxi Calculation Reloaded</title>
+<link href="https://fonts.googleapis.com/css?family=Jim+Nightshade|Press+Start+2P|Aldrich|Roboto" rel="stylesheet">
+<link href="../../css/parasec2.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+</head>
+<body>
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="#ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+<div id="content-wrapper">
+
+<h1>Athens Taxi Calculation Reloaded</h1>
+<h3>Fri May 06 14:09:43 UTC 2011</h3>
+
+<p>
+Since September last year my <a href="http://zee.gr/taxi/" target="_blank">taxi calculator</a> app has been used by 44 thousand people looking to estimate the cost of their taxi journey in Athens. After a lot of feedback, last weekend I decided to re-implement it and introduce some new features.
+</p>
+
+<img src="athens-taxi-trip-planner.png" alt="athens taxi trip calculator"/>
+
+<p>
+The first version of the app had many limitations. It was only intended to work in Athens, it did not include "Tariff 2" in any calculations (double tariff for part of trip outside of city limits), it did not include the new flat rate 35-50 euro fare to and from Athens airport and Athens centre (specifically inside the <a href="http://livingingreece.gr/2010/09/06/athens-ring/" target="_blank">Daktylios Athinon</a>), and most importantly, did not take into account the fare incurred when the taxi is stationary (in traffic or lights).
+</p>
+
+<p>
+Finally, it turned out that the google directions API I was using to calculate the possible taxi route <a href="http://www.google.com/support/forum/p/maps/thread?tid=783e80a060466392&hl=en" target="_new">did not work</a> for the center/daktylios ring of Athens. This is because the centre of Athens operates a traffic restriction policy based on the day of week and parity of number plate, and due to its complication, google or teleatlas have marked the area as pedestrian only. As a consequence, google directions do not work at all for Athens centre and are sub optimal for the Athens greater area because of the diversion from the pedestrian only zone.
+</p>
+
+<p>
+The new version now has the following features:
+<ul>
+  <li class="list">Works for most of Greece, including <a href="http://www.zee.gr/taxi/#from=37.44795,24.94306&to=37.43924,24.93571&avoidTolls=false" target="_blank">Greek islands</a> (fares differ on islands due to different VAT/FPA)</li>
+  <li class="list">Tariff 2 fare now included for trips originating from Athens or Thessaloniki if the trip <a href="http://www.zee.gr/taxi/#from=37.99311,23.73174&to=38.16017,23.95996&avoidTolls=false" target="_blank">exceeds city limits</a></li>
+  <li class="list">Includes fixed tariff for trips <a href="http://www.zee.gr/taxi/#from=37.93731,23.94538&to=37.9768,23.72597&avoidTolls=false" target="_blank">to and from Athens centre and Athens airport</a></li>
+  <li class="list">24 hour Forecast of traffic conditions in Athens or Thessaloniki and impact on taxi fare</li>
+  <li class="list">New routing/directions service based on <a href="http://www.openstreetmap.org/" target="_blank">OpenStreetMap</a> data</li>
+  <li class="list">Toll calculation for all of Greece</li>
+  <li class="list">JSON API for taxi cost calculation, toll calculation and dynamic traveling times (contact me if you would like to use it in your own app)</li>
+</ul>
+</p>
+
+<p>
+The original app was 100% client side (Javascript) - this is great for scalability, since the client does all of the work, however for the new version I wanted to pull most of the calculation server-side - specifically because the new features require a number of geometry calculations and quite a lot of geospatial data.
+</p>
+
+<p>
+Eventually I ended up with this stack:
+<ul>
+  <li class="list"><a href="https://dev.mysql.com/doc/refman/5.0/en/spatial-extensions.html" target="_blank">MySQL GIS</a> / Spatial Extensions (For storage of polygons,points etc)</li>
+  <li class="list"><a href="http://www.hibernatespatial.org/" target="_blank">Hibernate Spatial</a> (An abstraction/dialect between play and mysql gis)</li>
+  <li class="list"><a href="http://www.playframework.org/" target="_blank">Play Framework</a> (For server side logic and presentation via JSON)</li>
+  <li class="list"><a href="http://www.vividsolutions.com/jts/JTSHome.htm" target="_blank">Java Topology Suite</a> (For geometry calculations)</li>
+  <li class="list"><a href="http://www.openstreetmap.org/" target="_blank">Open Street Map</a> (Toll booth location data)</li>
+  <li class="list"><a href="https://developer.mapquest.com/" target="_blank">MapQuest Open Directions API</a> (For taxi route estimation)</li>
+  <li class="list"><a href="https://developers.google.com/maps/documentation/javascript/" target="_blank">Google Maps API v3</a> (For the map)</li>
+  <li class="list"><a href="http://jquery.com/" target="_blank">jQuery</a> (For the UI)</li>
+  <li class="list"><a href="http://philogb.github.io/jit/" target="_blank">Javascript InfoViz Toolkit</a> (For visualising 24 hour traffic forecast)</li>
+</ul>
+</p>
+
+<p>
+The MapQuest open directions API is a very good open routing service exposed via JSON/XML and makes use of data from the open street map project. The documentation and support is top-quality enabling me to make use of this web service in my app in next to no time.
+</p>
+
+<p>
+The most significant addition to the taxi app is the inclusion of a traffic model for Athens and Thessaloniki. As a separate side project I have been working on a forecasting/simulation system for traffic flow which will eventually make use of an implementation I started a few years ago of "NEAT" (Neuro Evolution of Augmenting Topologies) as a forecasting technique.
+</p>
+
+<p>
+For now, the model is very crude and is based on the assumption that the deviation from the average optimal driving speed (average driving speed with no-traffic) is very strongly correlated with trip duration. To model this in the taxi app, I use a matrix of weights which represent the deviation from optimal driving speed for an averaged 24 hour period in Athens.
+</p>
+
+<img src="athens-traffic-model.png" alt="athens traffic forecast model"/>
+
+<p>
+During the hours between midnight and ~5am, the traveling conditions are "optimal", meaning average driving speed will be &ge; the average of speed limits inside the city - this has a weight of "1" (no deviation). During the first peak/rush hour, the weight is 1.55, or according to my assumption, total (moving) traveling time will be 1.55 times more (on average during weekdays) and total (stationary) time/traffic lights/gridlock with also be 1.55 time more (likely). 
+</p>
+
+<p>
+The graph above shows my weights which have been derived from actual observations. The 5 labels (A to E) are very interesting and say quite a lot about life in Athens (or indeed many cities). It is obvious that in (A) congestion is much higher from ~7am, peaking exactly at 9am (B). Between 8 and 9, the situation rapidly deteriorates - People are going to work, and evidently the majority of the population want to be there at 9. The sudden peak is due to the size of the city - it is small, you can go quite far in 1 hour and most people will leave for work during this period. Label (C) shows that during weekdays most people will be at work and some perhaps heading out for lunch. Label (C) also shows a peak during saturday, which is probably people who are working on saturdays (having again arrived at 9 - smaller peak below B) and are leaving earlier at around 1pm. Label (C) also marks an interesting point - At around ~2pm the traffic suddenly starts to rise again up until it's peak at ~5pm. This long-tailed rise shows that unlike the sharp 9am peak, where most people want to be at work for 9, the time for people leaving work is obviously quite variable, but peaks around 5pm and long-tails off to settle down at around 8pm. Perhaps I'm in the wrong job because most people i know (working as programmers in Athens) have 0 chance of leaving work before 8. The final label (E) shows a peak of Saturday traffic at around 9pm - tsiporisation :)
+</p>
+
+
+<br style="clear:both"/>
+
+
+
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+</body>
+</html>

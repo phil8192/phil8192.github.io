@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta property="og:title" content="Kaggle - Santa's Workshop Tour 2019"/>
+<meta property="og:description" content="Santa's Workshop Tour 2019"/>
+<meta property="og:image" content="http://parasec.net/blog/kaggle-traveling-santa-2018-prime-paths/splash.png"/>
+<title>Kaggle - Santa's Workshop Tour 2019</title> 
+<link href="https://fonts.googleapis.com/css?family=Jim+Nightshade|Press+Start+2P|Aldrich|Roboto" rel="stylesheet">
+<link href="../../css/parasec2.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/xt256.min.css">
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    tex2jax: {
+      inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+      processEscapes: true
+    }
+  });
+</script>
+<script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+</head>
+<body>
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="#ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+<div id="content-wrapper">
+
+<div id="blog-header" style="background-image: url('splash.png'); background-color: #000000; color: #ffffff;">
+<h1>Kaggle - Santa's Workshop Tour 2019</h1>
+<h2>Algo. mix</h2>
+<h3>Mon Jan 27 00:26:26 UTC 2020</h3>
+</div>
+
+<p>
+This Xmas I took part in the <a href="https://www.kaggle.com/c/santa-workshop-tour-2019/">Kaggle - Santa's Workshop Tour 2019</a>
+competition. Last year, I managed to get a bronze, code+blog <a href="http://parasec.net/blog/kaggle-traveling-santa-2018-prime-paths/">here</a>.
+</p>
+
+<p>
+As with the previous year, this was an optimisation problem. Without going into too much detail, the problem was to assign 5000 families to to a daily schedule, where each family had expressed a set of preferences for 10 different days to visit Santa's workshop 100 days before xmas. Each day was (hard) constrained to hold a minimum of 125 to a maximum of 300 people. The objective was to minimise a score which penalised solutions where family preferences were not met + an accounting fee which favoured a smooth assignment (in terms of first differences) of families over the 100 days.
+</p>
+
+<p>
+Unlike last year, early in the competition, it became apparent that an optimal solution had been found - A few entries with the same score at top of leader-board.
+</p>
+<p>
+It turned out that that problem could be solved (proved to optimality) by formulating it as a Linear Programming problem. I've done some linear programming in the past, and had a go myself. The sheer number of variables involved was too much for an open source solver (CBC or GLPK). It could only be solved using a commercial solver such as CPLEX or Gurobi). I've used Gurobi in the past, it really is exceptional. The problem is, it is very expensive (10k+). They also offer a free license to academics, so the leader-board quickly became populated with optimal scores from people lucky enough to have access to Gurobi or another commercial solver. It was not a trivial problem to model (it was actually pretty hard, requiring integer linear programming skill). However, the competition was somewhat tainted by this.
+</p>
+
+<p>
+Nonetheless, I tried to compete with heuristics :). - I want this damn medal!
+</p>
+
+<h3>Approach #1 - Random moves &amp; hill-climbing</h3>
+<p>
+The first approach I took was to randomly select a single family, and then randomly select a day to move them to from their stated preferences. The move to a new day was only considered if the hard-constraints (min 125, max 300) for the current and candidate day were satisfied. If the candidate assignment yielded a better score, the candidate solution was accepted and a new random family was tried. This continued until I hit control-c. 
+</p>
+
+<p>
+This worked quite well initially. I was able to get a reasonable score and could leave it running, checking in once and a while. It soon became apparent that the move operation is quite limited, so I extended it to include family swaps, where 2 families are selected, and if possible, they exchange assigned days (constraints permitting).
+</p>
+
+<p>
+By just following this simple heuristic, I was able to stay above the scores from the public kernels. However, as with last year, higher quality public approaches/kernels began to appear, so I had to think of some new approaches.
+
+<h3>Approach #2 - Brute force using optimised objective function</h3>
+<p>
+The previous approach got stuck in local-minima pretty fast. I wanted to know for sure if I was
+stuck in local-minima. The problem was that the objective function was quite computationally expensive to compute, requiring iteration over all families for both the assignment and accounting penalty score.
+</p>
+
+<p>
+After lots of prototyping, I found a way to compute the objective function for a candidate move *very* quickly, using a move delta for both components of the score. This allowed me to assess new moves extremely fast, opening up lots of different possibilities in terms of algorithm implementation.
+</p>
+
+<p>
+Working from the first approach, I brute forced all possible moves from 1-2 families. When a move was found, the algorithm started from the first family. Upon reaching the final family, if no moves could be found, then the algorithm returned a local-minimum solution.
+</p>
+
+<p>
+It was possible to brute force all 1-2 family combinations in a few seconds using my fast penalty function. The computation time for all combinations of 3-family moves was significantly higher. To do this, I split the combinations to be considered into a random list and placed each unit of work onto a blocking-queue. I then had a set of "brute worker" threads consume from this queue, placing candidate solutions onto a different incoming-solution-queue. A supervisor thread would restart all workers and randomise the combination queue upon receiving an improvement in score.
+</p>
+
+<h3>Approach #3 - Simulated Annealing</h3>
+
+<p>
+To escape the local minima, I implemented simulating-annealing with a move selection probability function which favoured less-damaging moves (in terms of objective function delta).
+</p>
+
+<p>
+As with the previous approach, I used multiple simulated-annealing workers, each initialised with a randomly seeded random-number-generator.
+</p>
+
+<h3>Approach #4</h3>
+
+<p>
+The final algorithm was a mix of hill climbing with random moves, brute force and simulated annealing executed concurrently.
+</p>
+
+<p>
+In the final few days of the competition I fired up an Amazon EC2 c5-metal spot-instance with 96 cores (Xeon - Cascade Lake). With these heuristics, and a bit of help all these cores, was able to stay in the leader-board.
+</p>
+
+<h3>End result</h3>
+<p>
+In the end, I ended up at position <a href="https://www.kaggle.com/edgecrusher">114</a> out of <a href="https://www.kaggle.com/c/santa-workshop-tour-2019/leaderboard">1620</a> - another bronze :) I'm quite happy with that, given that my approach was 100% based on heuristics :] 
+</p>
+
+
+<h2>Code</h2>
+
+<p>
+<a href="https://github.com/phil8192/kaggle-santa-2019">github/phil8192/kaggle-santa-2019</a>
+</p>
+
+<br/>
+<br/>
+<br/>
+<br/>
+EOF
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+
+
+
+<script>hljs.initHighlightingOnLoad();</script>
+
+</body>
+</html>

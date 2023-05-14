@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RTL-SDR + Pi + InfluxDB Home monitoring</title>
+<link href="https://fonts.googleapis.com/css?family=Jim+Nightshade|Press+Start+2P|Aldrich|Roboto" rel="stylesheet">
+<link href="../../css/parasec2.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+</head>
+<body>
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="#ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+<div id="content-wrapper">
+
+<div id="blog-header" style="background-image: url('splash.png'); background-color: #000000; color: #ffffff;">
+<h1>RTL-SDR + Pi + InfluxDB Home monitoring</h1>
+<h3>Mon Jul 02 17:21:51 UTC 2018</h3>
+</div>
+
+
+<p>
+For ~8 years now, I've operated a personal weather station using a
+Watson W-8681. The station includes a number of sensors, including wind
+speed, wind direction, temperature, and humidity. Despite having to replace the
+brittle anemometer twice, the station has served me well during this time. I had
+used
+<a href="https://github.com/jim-easterbrook">Jim Easterbrook</a>'s excellent
+<a href="https://github.com/jim-easterbrook/pywws">pywws</a> package to extract
+data from the unit's USB interface, push readings to Met Office
+<a href="http://wow.metoffice.gov.uk/">"wow"</a> and
+<a href="https://www.wunderground.com/">Weather Underground</a>. I had also
+modified pywws, adding the ability to push weather updates to a
+<a href="https://pusher.com/">pusher channel</a> from which I had based a
+basic web-socket weather status page on. I used this in combination with the
+gnuplot output from pywws as a personal/local weather dashboard.
+</p>
+
+<img src="weather_station.png" alt="weather station"/>
+
+<p>
+This configuration worked well for many years until eventually the external
+transmitter failed. Annoyingly,
+<a href="https://en.wikipedia.org/wiki/Maplin_(retailer)">Maplin</a> no-longer
+stocked the specific transmitter, although did stock a slightly different
+version operating on a *different* radio frequency. In addition, the transmitter
+did not support my wind direction sensor. I could live without the wind-
+direction sensor, however the different frequency was an issue. My W-8681 unit
+operates on 868.3MHz, while the replacement transmitter operates on the popular
+433MHz range.
+(Note: Sadly, Maplin has now <a href="https://www.theguardian.com/business/2018/mar/08/maplin-63-head-office-workers-made-redundant-administration">closed down</a>).
+
+<p>
+About the same time, I had also started to monitor my home power consumption
+using an OWL-CM160 energy monitor. Like the W-8681, it is possible to extract
+data from the device over a USB interface. With my broken weather station and
+power monitor, I created a new weather/power monitoring dashboard based on
+<a href="https://www.influxdata.com/time-series-platform/influxdb/">InfluxDB</a>.
+(a <a href="https://en.wikipedia.org/wiki/Time_series_database">time series database</a>.)
+</p>
+
+<img src="grafana_weather.png" alt="grafana weather and power dashboard"/><!-- style="width:1024px"/-->
+
+<p>
+Using a mix of disparate sensors, I now have a pretty good overview of the
+status of my domicile. I also receive a message on my phone
+(over <a href="https://telegram.org/">Telegram</a> messenger) when the outside
+temperature drops below freezing and for fun, whenever the kettle is used. 
+</p>
+
+<p>
+My configuration is depicted in the ASCII below.
+<pre style="color:#ffffff; font-size:14px"> 
+                                                             +----------+
++------------------+        +-------+        +-------+       |anemometer|
+|power             | 433mhz |cm160  |        |n25fr  |<-----------------+
+|consumption       +------->|=======|        |=======|
+|sensor+transmitter|        |power  |        |garden |<-----------------+
++------------------+        |base   |        +---+---+       |rain gauge|
+                            |station|            |           +----------+
+                            +---+---+            |
+                                |                |
+                                |<a href="#energy">usb</a>             |<a href="#433mhz">433mhz</a>
+           +-------+            |                v               +------+
+           |wh1080 |            v            +---------+         |n25fr |
+           |=======|           +--+          |rtl2832u |         |======|
+           |weather+---------->|pi|<---------+=========|<--------+living|
+           |base   |   <a href="#base">usb</a>     ++-+    <a href="#433mhz">usb</a>   |tv dongle|  <a href="#433mhz">433mhz</a> |room  |
+           |station|            |            +---------+         +------+
+           +-------+            |
+                                |http
+                                |
+                                v
+         +---------+        +--------+         +-------+
+         |<a href="https://www.influxdata.com/time-series-platform/kapacitor/">kapacitor</a>|<-------+<a href="https://www.influxdata.com/time-series-platform/influxdb/">influxdb</a>+-------->|<a href="https://grafana.com/">grafana</a>|
+         +-----+---+        +--------+         +--+----+
+               |                                  |
+               |                                  |
+               v                                  |
+          +--------+           +-----+            v
+          |<a href="https://telegram.org/">telegram</a>+---------->|phone+----------> me :)
+          +--------+           +-----+
+
+</pre>
+
+<p>
+At the base of this configuration is a raspberry pi (model b) running Debian.
+The pi is connected to my old W-8681 weather station via USB, from which I still
+make use of pywws for reading data. To overcome the issue with different radio
+frequencies, the W-8681 no longer receives input from the external transmitter.
+Instead, the pi receives the signal directly via
+<a href="https://www.rtl-sdr.com/">software defined radio</a> over a USB TV
+dongle. In addition, the pi receives power consumption data via USB from the
+CM-160.
+</p>
+
+<img src="pi_weather.png" alt="pi weather station"/>
+
+<p>
+The nice thing about this configuration (for me at least) is that it makes use
+of otherwise depreciated components and abstracts away hardware specific bits
+and pieces. The time series database/the endpoint I push to, is agnostic to the
+source of the data: Everything is a sensor. 
+</p>
+
+
+<h2 id="433mhz">Weather sensors</h2>
+
+<p>
+I have 2 n25fr temperature+humidity sensors. The sensor outside is also attached
+to a anemometer and rain gauge. The indoor sensor is located in my living room.
+</p>
+
+<p>
+Both of these sensors were designed to transmit data to an n25fr (WH1050)
+weather base station which I do not have. Instead, I intercept the sensor
+readings using a USB TV dongle.
+</p>
+
+<img src="gqrx_01.png" alt="n25fr 433mhz - 01"/>
+
+<p>
+Every 48 seconds, the sensor transmits a burst of data containing a number of
+readings. Shown above and below is a spectrogram showing the transmission from
+my garden sensor on 433.861 MHz (the other transmits on a slightly different
+frequency in the 433 MHz range). I used <a href="http://gqrx.dk/">gqrx</a> to
+receive this. 
+</p>
+
+<img src="gqrx_02.png" alt="n25fr 433mhz - 02"/>
+
+<p>
+The transmission contains
+<a href="https://www.susa.net/wordpress/2012/08/raspberry-pi-reading-wh1081-weather-sensors-using-an-rfm01-and-rfm12b/">10 bytes of information</a>
+including temperature, humidity, rainfall and wind speed. I used
+<a href="https://github.com/merbanan/rtl_433">rtl_433</a> to decode this info.
+rtl_433 is a great project which supports decoding of over 100 devices which
+operate on the 433 MHz frequency. The tool has the option to output decoded
+messages as JSON objects, which I use in this setup.
+</p>
+
+<pre style="font-size:14px">
+<code>
+{
+  "id": 166,
+  "battery": "OK",
+  "speed": 0.0,
+  "gust": 1.224,
+  "humidity": 51,
+  "rain": 314.7,
+  "model": "Fine Offset WH1050 weather station",
+  "temperature_C": 22.1,
+  "time": "2018-06-27 22:44:46"
+}
+</code>
+</pre>
+
+<p>
+Every 48 seconds I receive an update from each of the 2 sensors in the form of
+JSON data, which I then
+<a href="https://github.com/phil8192/home-monitoring/blob/master/weather_n25fr.sh">pipe</a>
+to a
+<a href="https://github.com/phil8192/home-monitoring/blob/master/influx/influx_n25fr.py">script</a>
+which in turn pushes the update (if something has changed) to my InfluxDB
+instance.
+</p>
+
+
+<h2 id="base">Weather base station</h2>
+
+<p>
+The base station once received input from an external sensor similar to the
+n25fr which used to operate on 868.3 MHz and also transmit wind direction. Since
+the transmitter died, I'm left with just the base station, which currently sits
+in my office to monitor temperature, humidity and record air pressure. The unit
+is connected to the Raspberry PI via USB.
+</p>
+
+<p>
+I had previously used
+<a href="https://github.com/jim-easterbrook/pywws">pywws</a> to dump data and
+upload to wunderground, met office wow and my own pusherapp based dashboard.
+Since the external sensor died, I have defaulted to using the output of
+pywws-testweatherstation from pywws as
+<a href="https://github.com/phil8192/home-monitoring/blob/master/weather_wh1080.sh">input</a>
+to a script which pushes updates to InfluxDB.
+</p>
+
+<h2 id="energy">Energy monitor</h2>
+
+<p>
+The energy monitor base station is also connected to the rpi via USB. I'm using
+an OWL 160 which receives power usage updates from a magnetic sensor attached to
+the incoming power cable to my house (inside the power meter box). The sensor
+itself also transmits on 433 MHz, but for now, I just rely on the OWL unit to
+receive this signal.
+</p>
+
+<p>
+To read data from the OWL unit, I use
+<a href="https://github.com/cornetp/eagle-owl">eagle-owl</a>. Again, I pipe the
+output of this tool to a
+<a href="https://github.com/phil8192/home-monitoring/blob/master/power_cm160.sh">
+script</a> which, in turn, pushes a reading to InfluxDB containing my current
+electricity use in kWh.
+</p>
+
+<p>
+Monitoring my home power usage has been pretty useful for me. Since doing this,
+I've reduced my power draw significantly. Starting with my computers, I use the
+most optimal PSU for my load possible, I only use LED lights etc. Being aware of
+power consumption trend is more useful than real time kWh alone. Although not
+terribly exciting, I have also been able to diagnose a failing refrigerator
+compressor quickly using this data. This was detected from an abnormal step-
+pattern in kWh: the compressor would usually turn on at specific intervals, and
+one day began fluctuating erratically until settling into an always-on state.
+This would have been quite expensive if not caught early, given the high amount
+of power refrigerators draw when active.
+</p>
+
+
+<h2>Summary</h2>
+
+<p>
+I have pushed some
+<a href="https://github.com/phil8192/home-monitoring/">code</a> to Github which
+is specific to my setup, but may be of use to anyone looking to do something
+similar.
+</p>
+
+<p>
+EOF
+</p>
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+</body>
+</html>

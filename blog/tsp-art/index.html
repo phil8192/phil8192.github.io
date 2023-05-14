@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TSP Art (Travelling Salesman Problem Art)</title>
+
+<link href="https://fonts.googleapis.com/css?family=Jim+Nightshade|Press+Start+2P|Aldrich|Roboto" rel="stylesheet">
+<link href="../../css/parasec2.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+<script type="text/javascript" charset="utf-8" src="js/evolve.js"></script>
+</head>
+<body onload="load()">
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="#ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+<div id="content-wrapper">
+
+<h1>TSP Art (Travelling Salesman Problem Art)</h1>
+<h3>Tue Jun 03 02:31:15 UTC 2014</h3>
+
+<div style="float:left; width:555px">
+  <video width="640" controls>
+            <source src="red.mp4" type="video/mp4">
+            your browser does not support html5 video.
+	    you can watch the video on youtube <a href="https://www.youtube.com/watch?v=glREE0ibFKM">here</a>
+	    or download the mp4 file <a href="red.mp4">here</a>.
+  </video>
+</div>
+
+<div style="float:left; width:630px; margin-left:15px">
+	  <p style="margin-top:0px">
+          While working on an industrial optimisation problem involving very large scale instances of the
+	  <a href="http://en.wikipedia.org/wiki/Travelling_salesman_problem" target="_blank">Travelling Salesman Problem</a>,
+          I thought it would be an interesting expermient to generate a tour over a set of points obtained
+          from image <a href="http://en.wikipedia.org/wiki/Dither" target="_blank">dithering</a>. It turned out that this had
+	  been done before by <a href="http://www.cgl.uwaterloo.ca/~csk/projects/tsp/" target="_blank">Craig S. Kaplan</a> and 
+	  <a href="http://www.oberlin.edu/math/faculty/bosch/tspart-page.html" target="_blank">Robert Bosch</a>, who produced
+	  excellent results using a combination of <a href="http://mrl.nyu.edu/~ajsecord/stipples.html" target="_blank">Voronoi Stippling</a>
+	  and the <a href="http://www.math.uwaterloo.ca/tsp/concorde.html" target="_blank">Concorde TSP Solver</a>. Nonetheless, 
+	  having started the project; thought it would be fun to continue.
+	  </p>
+
+	  <p>
+          To generate a set of points from an image, I implemented the <a href="http://en.wikipedia.org/wiki/Floyd-Steinberg_dithering" _target="blank">Floyd-Steinberg</a> 
+	  dithering algorithm using Lisp. Next,
+	  using these points, I applied the <a href="http://en.wikipedia.org/wiki/2-opt" target="_blank">2-Opt</a> heuristic to
+	  produce a reasonable "two optimal" tour. For this step I implemented <a href="http://en.wikipedia.org/wiki/Jon_Bentley" target="_blank">Jon Bentley</a>'s
+	  <a href="http://pubsonline.informs.org/doi/abs/10.1287/ijoc.4.4.387" target="_blank">research</a> on 2-Opt, with my own
+	  improvements in Java, and as an excersise, 
+	  in Lisp.
+	  </p>
+
+	  <p>
+	  Some results are shown below and a time-lapse video (25fps) showing the optimisation process to the left.
+	  I'm using 2 Mucha artworks as input here simply because I thought they would produce interesting results.
+          </p>
+
+          <p>
+          The first example was chosen for it's contrast, which the algorithm reproduces nicely on the right. The
+	  second example was chosen for it's shadow - I thought it may produce a <a href="http://en.wikipedia.org/wiki/Chiaroscuro" target="_blank">Chiaroscuro</a>
+	  like effect. However, the initial dithering results in very dense regions of points, which makes Floyd-Steinberg
+          better suited to the higher contrast example in this case. Note that Bosch and Kaplan's results are superior to mine
+	  as they use Voronoi Stippling which results in a reduced and better distribution of points, which is good from
+	  both a visual and computational point of view.
+	  </p>
+
+  <h2>Code</h2>
+  <ul>
+    <li class="list"><a href="https://github.com/phil8192/dithering-algorithms" target="_blank">Floyd-Steinberg Dithering</a> - Image dithering algorithm (Lisp)</li>
+    <li  class="list"><a href="https://github.com/phil8192/tsp-java" target="_blank">FLS (Fast Local Search)</a> - 2-Opt search for the TSP with "dont look" heuristic (Java)</li>
+    <li class="list"><a href="https://github.com/phil8192/tsp-lisp" target="_blank">FLS Lisp</a> - Lisp implementation of FLS used in this experiment (also desc. of 2-Opt algorithm)</li>
+    <li class="list"><a href="https://github.com/phil8192/tsp-art" target="_blank">TSP Art</a> - Code used to perform dithering, optimisation, image/video generation (Lisp &amp; Bash)</li>
+  </ul>
+
+
+</div>
+
+<br style="clear:both"/>
+
+          <h2><a href="http://www.muchafoundation.org/">Alphonse Mucha</a> "Poetry", from The Arts series (1898)</h2>
+          <div style="float: left">
+	  <p>Original: (Greyscale)</p>
+	  <img src="alphonse-mucha-poetry-555x777.png" alt="alphonse mucha, poetry"/>	
+          </div>
+          <div style="float:left; margin-left:15px">
+          <p>Result: 2-Optimal tour of 205,503 points.</p>
+          <a href="mucha-poetry-tsp.png"><img src="mucha-poetry-tsp-555x777.png" alt="alphonse mucha, poetry, tsp art"/></a>
+          </div>
+
+          <br style="clear:both"/>
+
+          <h2><a href="http://www.muchafoundation.org/">Alphonse Mucha</a> Illustration from Le Pater (1899)</h2>
+          <div style="float: left">
+          <p>Original: (Greyscale)</p>
+	  <img src="le-pater-555x842.png" alt="alphonse mucha, le pater"/>
+          </div>
+          <div style="float:left; margin-left:15px">
+          <p>Result: 2-Optimal tour of 588,377 points.</p>
+          <a href="le-pater-tsp.png"><img src="le-pater-tsp-555x842.png" alt="alphonse mucha, le pater, tsp art"/></a>
+          </div>
+
+<br style="clear:both"/>
+
+
+
+
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+</body>
+</html>

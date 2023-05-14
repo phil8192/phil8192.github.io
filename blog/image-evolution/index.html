@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Genetic Algorithm for Image Evolution</title>
+<link href="../../css/parasec.css" rel="stylesheet" media="all" type="text/css" title="css stuff"/>
+<script type="text/javascript" charset="utf-8" src="js/evolve.js"></script>
+</head>
+<body onload="load()">
+<div id="nav">
+  <div id="menu">
+      <ul style="float: left; padding-left:5px;">
+        <li style="padding-left: 5px; padding-right: 40px;"><a href="/">parasec.net</a></li>
+        <li style="background-color: #000000; color: #ff0000">-_-_-_-_</li>
+      </ul>
+    <ul>
+      <li style="border-bottom: 1px solid #ff0000;"><a href="/blog">Blog</a></li>
+      <li><a href="/about">About</a></li>
+   </ul>
+  </div>
+</div>
+<div id="content-wrapper">
+
+<h1>Genetic Algorithm for Image Evolution</h1>
+<h3>Thu Jan 05 19:45:00 UTC 2012</h3>
+
+<!--
+William Adolphe Bouguereau (William Bouguereau) (1825-1905)
+Nymphes et Satyre
+Oil on canvas
+1873
+260 x 180 cm
+(102.36" x 70.87")
+-->
+
+<img id="orig_img" src="nymphes_et_satyre-300-435.jpg" style="display:none"/>
+
+<table border="0">
+  <tr>
+    <td>
+      <h3>Original</h3>
+      <canvas id="orig_img_canvas" width="300" height="435" style="border:0px dotted green; background: #000;"></canvas>
+    </td>
+    <td>
+      <h3>Best so far</h3>
+      <canvas id="best_img_canvas" width="300" height="435" style="border:0px dotted red; background: #000;"></canvas>
+    </td>
+    <td>
+      <h3>Evolving</h3>
+      <canvas id="test_img_canvas" width="300" height="435" style="border:0px dotted blue; background: #000;"></canvas>
+    </td>
+  </tr>
+</table>
+
+<div id="debug"></div>
+<div id="fitness"></div>
+<div id="chi"></div>
+<div id="ind"></div>
+<div id="polys"></div>
+
+
+<h2>Experiment</h2>
+
+<p>
+Some time ago I came across <a href="http://rogeralsing.com/2008/12/07/genetic-programming-evolution-of-mona-lisa/" target="_blank">this</a>, <a href="http://alteredqualia.com/visualization/evolve/" target="_blank">this</a> and <a href="http://npcontemplation.blogspot.com/2009/01/clojure-genetic-mona-lisa-problem-in.html" target="_blank">this</a> - an interesting idea to reproduce an image given a minimal set of polygons, utilising evolutionary search. The original idea used a hill climbing strategy to randomly mutate a collection of polygons, keeping a mutation only if the change yielded an improvement, defined by the sum of pixel by pixel differences between the original image and the collection of polygons in the new image. I was curious if the method could be improved by using a genetic algorithm (using a population of candidate solutions instead of just 1).
+</p>
+
+<p>
+The algorithm initialises a population of candidate images where each image contains 1 randomly coloured and positioned polygon. At each evolutionary step, each individual (candidate image) in the population is evaluated according to a fitness function which determines the closeness of the candidate image from the original and then assigned a fitness score. Then, individuals from the population are selected using <a href="http://en.wikipedia.org/wiki/Fitness_proportionate_selection" target="_blank">fitness proportionate selection</a> such that individuals with greater fitness (closer proximity to original image) have a greater chance of mating. Selected individuals then produce offspring using a genetic crossover technique and are then subject to mutation. Crossover involved copying polygons from each parent to form new offspring, while mutation involved random changes to polygon structure and colour as well as the possibility to add or remove a polygon from the newly created offspring.
+</p>
+
+<p>
+The main difficulty with using a GA for this problem is the choice of crossover function. I tried a number of schemes and found them to be destructive - Ultimately mutation led the search for image improvements. However this simply resulted in random search. The second difficulty is the quality of the fitness function: I tried the sum of differences between the original image and the candidate image over each RGB value, histogram comparison and a combination of both. Ultimately, I could not really improve on random search so am thinking of new ways to encode the problem so that the search space is better defined.
+</p>
+
+<h2>Code</h2>
+<p>
+The javascript code for this experiemnt is available <a href="https://github.com/phil8192/image-evolution" target="_blank">here</a> for anyone interested.
+</p>
+
+<h2>Some other examples</h2>
+
+<h3>From a photograph</h3>
+
+<p>
+The following example shows a sequence of image evolution snapshots. The 
+example photograph is of the old <a href="http://entropy.disconnect.me.uk/2010/06/eastern-telegraph-co-ltd.html" target="_blank">Eastern Telegraph Building</a> 
+in Syros, Greece.
+</p>
+
+<img src="ett01.jpg" alt="eastern telegraph syros" width="400" height="328"/>
+
+<br/>
+<br/>
+
+<img src="syros.jpg" alt="image evolution" width="1024" height="1227"/>
+
+<h3>Judith Beheading Holofernes</h3>
+
+<p>
+This example shows a sequence of snapshots from the evolution of this <a href="http://en.wikipedia.org/wiki/Judith_Beheading_Holofernes_%28Caravaggio%29" target="_blank">painting</a>
+by Caravaggio.
+</p>
+
+<img src="judith.png" alt="judith" width="1024" height="506"/>
+
+<br/><br/>
+
+<img src="caravaggio-judith-beheading-holofernes.png" alt="Judith Beheading Holofernes" width="640" height="390"/>
+
+<br/>
+
+
+
+
+</div>
+
+<script type="text/javascript">
+(function() {
+  /*
+   * google crap.
+   */
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-2218121-1', 'auto');
+  ga('send', 'pageview');
+})();
+</script>
+</body>
+</html>
